@@ -25,6 +25,11 @@ def send(body):
     except OSError: return {"status": "unavailable"}
 
 
+def socket_ready():
+    """A stale Unix-socket pathname is not evidence that a server is alive."""
+    return send({"type": "probe"}).get("status") != "unavailable"
+
+
 def launch(args):
     session = os.environ.get("ITERM_SESSION_ID")
     if not session: print("ITERM_SESSION_ID is required", file=sys.stderr); return 2
@@ -70,7 +75,7 @@ def main(argv=None):
             config_dir().mkdir(mode=0o700, parents=True, exist_ok=True)
             print("Created bridge state directory. Enable iTerm2 Python API and install a reviewed adapter hook manually.")
         return 0
-    print("socket=" + ("ready" if socket_path().exists() else "not_configured"))
+    print("socket=" + ("ready" if socket_ready() else "not_configured"))
     print("iterm2=" + ("found" if find_it2() else "missing"))
     for name,(exe,events) in ADAPTERS.items(): print("%s executable=%s events=%s"%(name,"found" if shutil.which(exe) else "missing",len(events)))
     return 0

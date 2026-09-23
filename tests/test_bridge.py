@@ -3,6 +3,7 @@ import unittest
 from agent_terminal_bridge.protocol import ProtocolError, validate_event, validate_register
 from agent_terminal_bridge.server import Bridge
 from agent_terminal_bridge.publisher import session_uuid, publish
+from agent_terminal_bridge.cli import socket_ready
 
 
 def registration(nonce="a" * 32):
@@ -57,3 +58,8 @@ class BridgeTests(unittest.TestCase):
         with patch("agent_terminal_bridge.publisher.find_it2", return_value="/bin/true"), patch("agent_terminal_bridge.publisher.subprocess.run", return_value=Result()) as run:
             self.assertTrue(publish("w0t0p0:123e4567-e89b-42d3-a456-426614174000", State()))
         self.assertIn("working", run.call_args.args[0])
+
+    def test_doctor_does_not_call_stale_socket_ready(self):
+        from unittest.mock import patch
+        with patch("agent_terminal_bridge.cli.send", return_value={"status": "unavailable"}):
+            self.assertFalse(socket_ready())
