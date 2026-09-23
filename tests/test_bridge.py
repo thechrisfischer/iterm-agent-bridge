@@ -11,6 +11,7 @@ from agent_terminal_bridge.publisher import session_uuid, publish
 from agent_terminal_bridge.cli import launch, socket_ready
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
 from agent_terminal_bridge.adapters import mapping
+from agent_terminal_bridge.review import render_review
 
 
 def registration(nonce="a" * 32):
@@ -36,6 +37,18 @@ class BridgeTests(unittest.TestCase):
     def test_stale_nonce_is_rejected(self):
         bridge=Bridge(); bridge.handle(registration("a"*32)); bridge.handle(registration("b"*32))
         with self.assertRaises(ProtocolError): bridge.handle(event("turn_started",0))
+
+    def test_snapshot_lists_only_privacy_limited_child_identity(self):
+        bridge=Bridge(publisher=lambda session, state: True)
+        bridge.handle(registration())
+        bridge.handle(event("child_started", 0, child_id="child-7"))
+        snapshot = bridge.handle({"type": "snapshot"})["sessions"]
+        self.assertEqual(snapshot[0]["children"], ["child-7"])
+        self.assertNotIn("nonce", snapshot[0])
+
+    def test_review_reports_a_non_git_directory(self):
+        with TemporaryDirectory() as temporary:
+            self.assertIn("No Git worktree", render_review(temporary))
 
     def test_publishes_transition_to_explicit_iterm_session(self):
         published=[]

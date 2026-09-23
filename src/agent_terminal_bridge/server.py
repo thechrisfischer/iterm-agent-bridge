@@ -23,7 +23,19 @@ class Bridge:
         self.sessions = {}
         self.publisher = publisher
 
+    def snapshot(self):
+        """Privacy-limited flightboard: no prompts, output, or tool arguments."""
+        return [{"agent": state.agent, "project": state.project_basename,
+                 "session": state.session_id, "state": state.display_state,
+                 "delivery": state.delivery, "children": sorted(state.children),
+                 "updated_at": state.updated_at}
+                for state in self.sessions.values() if state.closed_at is None]
+
     def handle(self, raw):
+        if raw.get("type") == "probe":
+            return {"status": "ready"}
+        if raw.get("type") == "snapshot":
+            return {"status": "ready", "sessions": self.snapshot()}
         if raw.get("type") == "register":
             data = validate_register(raw)
             state = SessionState(data["agent"], data["iterm_session_id"], data["launch_nonce"], data["project_basename"])
@@ -62,9 +74,6 @@ async def serve():
         async with server:
             await server.serve_forever()
     finally:
-        # asyncio closes the listener on cancellation but does not remove its
-        # filesystem entry. Remove only our own entry: a later service may have
-        # already replaced it after recovering from a stale socket.
         try:
             current = path.stat()
             if (current.st_dev, current.st_ino) == (owned_socket.st_dev, owned_socket.st_ino):

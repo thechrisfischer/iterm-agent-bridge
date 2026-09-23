@@ -36,6 +36,21 @@ if iTerm publication is unavailable:
 agent-terminal-bridge launch --agent codex -- codex
 ```
 
+## Review and background-agent panels
+
+Open either read-only panel in an iTerm split pane alongside an agent:
+
+```bash
+agent-terminal-bridge review --watch
+agent-terminal-bridge agents --watch
+```
+
+`review` shows the current branch, changed and untracked files, staged and
+unstaged diff statistics, and a whitespace check. Use `review --patch` for the
+full unstaged patch. `agents` shows active bridge sessions and reported child
+agent IDs with their lifecycle state. It deliberately does not collect prompts,
+transcripts, tool arguments, or fabricated percent-complete values.
+
 Install each non-Codex adapter only after reviewing its dry run. Each publisher
 merges only its identifiable command entries, creates a verified neighboring
 backup before a replacement, and never trusts a hook on your behalf:
