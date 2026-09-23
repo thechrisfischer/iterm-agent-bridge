@@ -11,8 +11,9 @@ from pathlib import Path
 
 COMMAND = "agent-terminal-bridge emit --agent "
 JSON_AGENTS = frozenset(("claude", "cursor", "agy"))
-KIMI_EVENTS = ("TurnStarted", "PreToolUse", "PostToolUse", "PermissionRequest",
-               "PermissionResult", "Stop", "SubagentStart", "SubagentStop", "SessionEnd")
+KIMI_EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+               "PostToolUseFailure", "PermissionRequest", "PermissionResult", "Stop",
+               "StopFailure", "Interrupt", "SessionEnd", "SubagentStart", "SubagentStop")
 EVENTS = {
     "claude": ("UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest",
                "Stop", "SubagentStart", "SubagentStop", "SessionEnd"),
@@ -110,15 +111,41 @@ def render_json(agent, existing):
     return output, changed
 
 
+def _without_kimi_owned_hooks(existing):
+    """Remove only complete `[[hooks]]` blocks that contain our command."""
+    marker = "# agent-terminal-bridge:kimi"
+    lines = existing.splitlines()
+    output = []
+    index = 0
+    expected = command("kimi")
+    while index < len(lines):
+        line = lines[index]
+        if line.strip() == marker:
+            index += 1
+            continue
+        if line.strip() != "[[hooks]]":
+            output.append(line)
+            index += 1
+            continue
+        end = index + 1
+        while end < len(lines) and not lines[end].lstrip().startswith("["):
+            end += 1
+        block = lines[index:end]
+        if expected not in "\n".join(block):
+            output.extend(block)
+        index = end
+    return "\n".join(output).rstrip()
+
+
 def render_kimi(existing):
     marker = "# agent-terminal-bridge:kimi"
-    if marker in existing or command("kimi") in existing:
-        return existing, False
+    base = _without_kimi_owned_hooks(existing)
     lines = ["", marker]
     for event in KIMI_EVENTS:
         lines.extend(("[[hooks]]", 'event = "%s"' % event,
                       'command = "%s"' % command("kimi"), "timeout = 1", ""))
-    return existing.rstrip() + "\n" + "\n".join(lines), True
+    rendered = base + "\n" + "\n".join(lines)
+    return rendered, rendered != existing
 
 
 def _validate_kimi(path):
@@ -148,7 +175,9 @@ def publish(agent, home=None, dry_run=False):
         if path.exists() and (path.is_symlink() or not path.is_file()):
             raise ValueError("refusing non-regular configuration: %s" % path)
         existing = path.read_text() if path.exists() else ""
-        if path.exists():
+        # An older bridge block can itself be the incompatible portion. The
+        # staged candidate below is still validated by Kimi before replacement.
+        if path.exists() and "# agent-terminal-bridge:kimi" not in existing:
             _validate_kimi(path)
         rendered, changed = render_kimi(existing)
         content = rendered

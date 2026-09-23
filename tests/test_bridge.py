@@ -84,9 +84,21 @@ class BridgeTests(unittest.TestCase):
         rendered, changed = render_kimi('default_model = "kimi"\n')
         self.assertTrue(changed)
         self.assertIn('# agent-terminal-bridge:kimi', rendered)
+        self.assertIn('event = "SessionStart"', rendered)
+        self.assertNotIn('event = "TurnStarted"', rendered)
         repeated, changed = render_kimi(rendered)
         self.assertFalse(changed)
         self.assertEqual(repeated, rendered)
+
+    def test_kimi_publisher_replaces_only_its_legacy_hook_blocks(self):
+        legacy = ('custom = "value"\n\n# agent-terminal-bridge:kimi\n[[hooks]]\n'
+                  'event = "TurnStarted"\ncommand = "agent-terminal-bridge emit --agent kimi"\n'
+                  'timeout = 1\n\n[[hooks]]\nevent = "Stop"\ncommand = "other-hook"\n')
+        rendered, changed = render_kimi(legacy)
+        self.assertTrue(changed)
+        self.assertIn('custom = "value"', rendered)
+        self.assertIn('command = "other-hook"', rendered)
+        self.assertNotIn('event = "TurnStarted"', rendered)
 
     def test_kimi_publisher_refuses_invalid_existing_configuration(self):
         from tempfile import TemporaryDirectory
