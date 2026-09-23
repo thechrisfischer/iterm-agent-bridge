@@ -4,6 +4,7 @@ from agent_terminal_bridge.protocol import ProtocolError, validate_event, valida
 from agent_terminal_bridge.server import Bridge
 from agent_terminal_bridge.publisher import session_uuid, publish
 from agent_terminal_bridge.cli import socket_ready
+from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
 
 
 def registration(nonce="a" * 32):
@@ -63,3 +64,30 @@ class BridgeTests(unittest.TestCase):
         from unittest.mock import patch
         with patch("agent_terminal_bridge.cli.send", return_value={"status": "unavailable"}):
             self.assertFalse(socket_ready())
+
+    def test_json_publishers_preserve_unrelated_configuration(self):
+        settings = {"permissions": {"allow": ["Bash(git)"]}}
+        rendered, changed = render_json("claude", settings)
+        self.assertTrue(changed)
+        self.assertEqual(rendered["permissions"], settings["permissions"])
+        self.assertIn(command("claude"), str(rendered))
+        repeated, changed = render_json("claude", rendered)
+        self.assertFalse(changed)
+        self.assertEqual(repeated, rendered)
+
+    def test_kimi_publisher_is_marked_and_repeat_safe(self):
+        rendered, changed = render_kimi('default_model = "kimi"\n')
+        self.assertTrue(changed)
+        self.assertIn('# agent-terminal-bridge:kimi', rendered)
+        repeated, changed = render_kimi(rendered)
+        self.assertFalse(changed)
+        self.assertEqual(repeated, rendered)
+
+    def test_publish_dry_run_does_not_write(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        with TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            outcome = publish_config("cursor", home=home, dry_run=True)
+            self.assertTrue(outcome["changed"])
+            self.assertFalse((home / ".cursor/hooks.json").exists())

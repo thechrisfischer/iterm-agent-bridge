@@ -13,6 +13,7 @@ from .adapters import ADAPTERS, mapping
 from .protocol import PROTOCOL_VERSION
 from .server import config_dir, socket_path, serve
 from .publisher import find_it2
+from .config import JSON_AGENTS, publish
 
 
 def send(body):
@@ -48,20 +49,24 @@ def emit(args):
     raw = json.load(sys.stdin) if not sys.stdin.isatty() else {}
     kind = events.get(raw.get("hook_event_name") or args.upstream_event)
     session, nonce = os.environ.get("ITERM_SESSION_ID"), os.environ.get("AGENT_TERMINAL_BRIDGE_NONCE")
-    if not kind or not session or not nonce: return 0
+    if not kind or not session or not nonce:
+        print("{}")
+        return 0
     seqfile = config_dir() / ("sequence-" + nonce); config_dir().mkdir(mode=0o700, parents=True, exist_ok=True)
     try: sequence = int(seqfile.read_text()) + 1
     except (OSError, ValueError): sequence = 0
     seqfile.write_text(str(sequence))
     body={"type":"event","protocol_version":PROTOCOL_VERSION,"agent":args.agent,"iterm_session_id":session,"launch_nonce":nonce,"event_id":str(uuid.uuid4()),"sequence":sequence,"kind":kind}
     if kind in ("child_started","child_finished"): body["child_id"] = str(raw.get("agent_id") or raw.get("task_id") or "unknown")
-    send(body); return 0
+    send(body)
+    print("{}")
+    return 0
 
 
 def main(argv=None):
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="action",required=True)
     sub.add_parser("serve"); sub.add_parser("doctor")
-    install = sub.add_parser("install"); install.add_argument("--dry-run", action="store_true")
+    install = sub.add_parser("install"); install.add_argument("--dry-run", action="store_true"); install.add_argument("--agent", choices=tuple(sorted(JSON_AGENTS | {"kimi"})))
     l=sub.add_parser("launch"); l.add_argument("--agent",choices=ADAPTERS,required=True); l.add_argument("command",nargs=argparse.REMAINDER)
     e=sub.add_parser("emit"); e.add_argument("--agent",choices=ADAPTERS,required=True); e.add_argument("--upstream-event")
     a=p.parse_args(argv)
@@ -69,6 +74,11 @@ def main(argv=None):
     if a.action=="launch": return launch(a)
     if a.action=="emit": return emit(a)
     if a.action=="install":
+        if a.agent:
+            result = publish(a.agent, dry_run=a.dry_run)
+            action = "Would add" if a.dry_run and result["changed"] else ("Added" if result["changed"] else "Already has")
+            print("%s bridge hooks for %s at %s" % (action, a.agent, result["path"]))
+            return 0
         if a.dry_run:
             print("Would create %s and install no hooks until you review them." % config_dir())
         else:

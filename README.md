@@ -42,24 +42,36 @@ dedicated terminal, then launch a supported agent through the bridge:
 agent-terminal-bridge launch --agent codex -- codex
 ```
 
-The repository ships a Codex hook plugin manifest. Other adapters remain
-manual until their native installer writes can be made as conservative and
-reversible as the Codex path. `agent-terminal-bridge install --dry-run` does
-not alter iTerm2 settings or trust hooks.
+Install each non-Codex adapter only after reviewing its dry run. Each publisher
+merges only its identifiable command entries, creates a verified neighboring
+backup before a replacement, and never trusts a hook on your behalf:
+
+```bash
+agent-terminal-bridge install --agent claude --dry-run
+agent-terminal-bridge install --agent claude
+agent-terminal-bridge install --agent cursor
+agent-terminal-bridge install --agent kimi
+agent-terminal-bridge install --agent agy
+```
+
+Use each agent's native hook review UI after publication. The generic
+`agent-terminal-bridge install --dry-run` does not alter iTerm2 settings or
+trust hooks.
 
 ## Current support
 
 | Agent | Normalized lifecycle mapping | Shipped registration |
 | --- | --- | --- |
 | Codex CLI | Yes | Codex plugin hook manifest |
-| Claude Code | Yes | Manual hook setup pending |
-| Cursor Agent | Yes | Manual hook setup pending |
-| Kimi Code | Yes | Manual hook setup pending |
-| Antigravity CLI | Yes | Manual hook setup pending |
+| Claude Code | Yes | Opt-in user-settings publisher; native review still required |
+| Cursor Agent | Yes | Opt-in user-hooks publisher |
+| Kimi Code | Yes | Opt-in TOML hook publisher |
+| Antigravity CLI | Yes | Opt-in global-hook publisher |
 
 This is deliberately not a claim that all five clients are installed or
-equivalent yet. The published protocol and state machine are shared; agent
-configuration publication is the remaining compatibility work.
+equivalent yet. Every publisher must still earn its adapter's native smoke
+evidence; Cursor cloud sessions and undocumented upstream events remain outside
+the local-status claim.
 
 ## Privacy
 
