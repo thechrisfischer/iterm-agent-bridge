@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-terminal-bridge"
+version = "0.1.0"
+description = "Local iTerm2 lifecycle status for coding agents"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+[project.scripts]
+agent-terminal-bridge = "agent_terminal_bridge.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

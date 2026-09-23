@@ -1,0 +1,17 @@
+{
+  "name": "agent-terminal-bridge",
+  "version": "0.1.0",
+  "description": "Publish Codex lifecycle state to a local iTerm2 bridge.",
+  "author": {
+    "name": "Local developer"
+  },
+  "interface": {
+    "displayName": "Agent Terminal Bridge",
+    "shortDescription": "Use Agent Terminal Bridge in Codex.",
+    "longDescription": "Agent Terminal Bridge adds a local Codex plugin scaffold.",
+    "developerName": "Chris Fischer",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Help me use Agent Terminal Bridge."
+  }
+}
