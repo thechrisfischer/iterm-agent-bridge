@@ -5,6 +5,7 @@ from agent_terminal_bridge.server import Bridge
 from agent_terminal_bridge.publisher import session_uuid, publish
 from agent_terminal_bridge.cli import socket_ready
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
+from agent_terminal_bridge.adapters import mapping
 
 
 def registration(nonce="a" * 32):
@@ -91,3 +92,7 @@ class BridgeTests(unittest.TestCase):
             outcome = publish_config("cursor", home=home, dry_run=True)
             self.assertTrue(outcome["changed"])
             self.assertFalse((home / ".cursor/hooks.json").exists())
+
+    def test_installed_completion_events_are_mapped(self):
+        for agent, upstream in (("claude", "SessionEnd"), ("cursor", "sessionEnd"), ("kimi", "SessionEnd")):
+            self.assertEqual(mapping(agent)[1][upstream], "session_closed")
