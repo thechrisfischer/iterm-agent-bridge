@@ -21,8 +21,6 @@ class SessionState:
 
     @property
     def display_state(self):
-        if self.delivery != "ready":
-            return "unavailable"
         if self.permission_pending:
             return "waiting"
         if self.turn_active or self.children:

@@ -12,6 +12,7 @@ from pathlib import Path
 from .adapters import ADAPTERS, mapping
 from .protocol import PROTOCOL_VERSION
 from .server import config_dir, socket_path, serve
+from .publisher import find_it2
 
 
 def send(body):
@@ -70,6 +71,7 @@ def main(argv=None):
             print("Created bridge state directory. Enable iTerm2 Python API and install a reviewed adapter hook manually.")
         return 0
     print("socket=" + ("ready" if socket_path().exists() else "not_configured"))
+    print("iterm2=" + ("found" if find_it2() else "missing"))
     for name,(exe,events) in ADAPTERS.items(): print("%s executable=%s events=%s"%(name,"found" if shutil.which(exe) else "missing",len(events)))
     return 0
 

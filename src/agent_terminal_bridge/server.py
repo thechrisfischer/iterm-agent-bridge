@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .protocol import ProtocolError, validate_event, validate_register
 from .state import SessionState
+from .publisher import publish
 
 
 def config_dir():
@@ -18,21 +19,26 @@ def socket_path():
 
 
 class Bridge:
-    def __init__(self):
+    def __init__(self, publisher=publish):
         self.sessions = {}
+        self.publisher = publisher
 
     def handle(self, raw):
         if raw.get("type") == "register":
             data = validate_register(raw)
-            self.sessions[data["iterm_session_id"]] = SessionState(data["agent"], data["iterm_session_id"], data["launch_nonce"], data["project_basename"], delivery="ready")
-            return {"status": "registered"}
+            state = SessionState(data["agent"], data["iterm_session_id"], data["launch_nonce"], data["project_basename"])
+            self.sessions[data["iterm_session_id"]] = state
+            state.delivery = "ready" if self.publisher(state.session_id, state) else "unavailable"
+            return {"status": "registered", "delivery": state.delivery}
         if raw.get("type") == "event":
             data = validate_event(raw)
             state = self.sessions.get(data["iterm_session_id"])
             if state is None or state.nonce != data["launch_nonce"]:
                 raise ProtocolError("unregistered or stale session")
-            state.apply(data)
-            return {"status": "accepted", "state": state.display_state}
+            changed = state.apply(data)
+            if changed:
+                state.delivery = "ready" if self.publisher(state.session_id, state) else "unavailable"
+            return {"status": "accepted", "state": state.display_state, "delivery": state.delivery}
         raise ProtocolError("unsupported message type")
 
 
