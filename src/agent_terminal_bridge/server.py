@@ -57,4 +57,17 @@ async def serve():
         await writer.drain(); writer.close(); await writer.wait_closed()
     server = await asyncio.start_unix_server(handler, path=str(path))
     os.chmod(path, 0o600)
-    async with server: await server.serve_forever()
+    owned_socket = path.stat()
+    try:
+        async with server:
+            await server.serve_forever()
+    finally:
+        # asyncio closes the listener on cancellation but does not remove its
+        # filesystem entry. Remove only our own entry: a later service may have
+        # already replaced it after recovering from a stale socket.
+        try:
+            current = path.stat()
+            if (current.st_dev, current.st_ino) == (owned_socket.st_dev, owned_socket.st_ino):
+                path.unlink()
+        except FileNotFoundError:
+            pass

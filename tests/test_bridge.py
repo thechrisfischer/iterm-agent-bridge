@@ -1,7 +1,11 @@
+import asyncio
+import os
 import unittest
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from agent_terminal_bridge.protocol import ProtocolError, validate_event, validate_register
-from agent_terminal_bridge.server import Bridge
+from agent_terminal_bridge.server import Bridge, serve, socket_path
 from agent_terminal_bridge.publisher import session_uuid, publish
 from agent_terminal_bridge.cli import socket_ready
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
@@ -96,3 +100,18 @@ class BridgeTests(unittest.TestCase):
     def test_installed_completion_events_are_mapped(self):
         for agent, upstream in (("claude", "SessionEnd"), ("cursor", "sessionEnd"), ("kimi", "SessionEnd")):
             self.assertEqual(mapping(agent)[1][upstream], "session_closed")
+
+
+class ServerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cancelled_server_removes_its_socket(self):
+        with TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
+            task = asyncio.create_task(serve())
+            for _ in range(50):
+                if socket_path().exists():
+                    break
+                await asyncio.sleep(.01)
+            self.assertTrue(socket_path().exists())
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertFalse(socket_path().exists())
