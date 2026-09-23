@@ -30,7 +30,11 @@ def launch(args):
     nonce = secrets.token_hex(16)
     send({"type":"register","protocol_version":1,"agent":args.agent,"iterm_session_id":session,"launch_nonce":nonce,"project_basename":Path.cwd().name})
     env = os.environ.copy(); env["AGENT_TERMINAL_BRIDGE_NONCE"] = nonce
-    return subprocess.call(args.command, env=env)
+    command = args.command[1:] if args.command and args.command[0] == "--" else args.command
+    if not command:
+        print("an agent command is required after --", file=sys.stderr)
+        return 2
+    return subprocess.call(command, env=env)
 
 
 def emit(args):
@@ -50,13 +54,21 @@ def emit(args):
 
 def main(argv=None):
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest="action",required=True)
-    sub.add_parser("serve"); d=sub.add_parser("doctor")
+    sub.add_parser("serve"); sub.add_parser("doctor")
+    install = sub.add_parser("install"); install.add_argument("--dry-run", action="store_true")
     l=sub.add_parser("launch"); l.add_argument("--agent",choices=ADAPTERS,required=True); l.add_argument("command",nargs=argparse.REMAINDER)
     e=sub.add_parser("emit"); e.add_argument("--agent",choices=ADAPTERS,required=True); e.add_argument("--upstream-event")
     a=p.parse_args(argv)
     if a.action=="serve": asyncio.run(serve()); return 0
     if a.action=="launch": return launch(a)
     if a.action=="emit": return emit(a)
+    if a.action=="install":
+        if a.dry_run:
+            print("Would create %s and install no hooks until you review them." % config_dir())
+        else:
+            config_dir().mkdir(mode=0o700, parents=True, exist_ok=True)
+            print("Created bridge state directory. Enable iTerm2 Python API and install a reviewed adapter hook manually.")
+        return 0
     print("socket=" + ("ready" if socket_path().exists() else "not_configured"))
     for name,(exe,events) in ADAPTERS.items(): print("%s executable=%s events=%s"%(name,"found" if shutil.which(exe) else "missing",len(events)))
     return 0

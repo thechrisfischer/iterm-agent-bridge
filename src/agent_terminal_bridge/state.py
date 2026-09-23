@@ -47,9 +47,11 @@ class SessionState:
             self.children.discard(event["child_id"])
         elif kind in ("turn_finished", "interrupted"):
             self.turn_active = False
+            self.permission_pending = False
         elif kind == "session_closed":
             self.turn_active = False
             self.permission_pending = False
+            self.children.clear()
             self.closed_at = time()
         self.updated_at = time()
         return True
