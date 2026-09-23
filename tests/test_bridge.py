@@ -88,6 +88,35 @@ class BridgeTests(unittest.TestCase):
         self.assertFalse(changed)
         self.assertEqual(repeated, rendered)
 
+    def test_kimi_publisher_refuses_invalid_existing_configuration(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        with TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            path = home / ".kimi-code/config.toml"
+            path.parent.mkdir()
+            path.write_text("not = [valid\n")
+            class Result:
+                returncode = 1
+            with patch("agent_terminal_bridge.config.shutil.which", return_value="/fake/kimi"), \
+                 patch("agent_terminal_bridge.config.subprocess.run", return_value=Result()):
+                with self.assertRaises(ValueError):
+                    publish_config("kimi", home=home)
+            self.assertEqual(path.read_text(), "not = [valid\n")
+
+    def test_kimi_publisher_validates_staged_configuration(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        with TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            class Result:
+                returncode = 0
+            with patch("agent_terminal_bridge.config.shutil.which", return_value="/fake/kimi"), \
+                 patch("agent_terminal_bridge.config.subprocess.run", return_value=Result()) as run:
+                publish_config("kimi", home=home)
+            self.assertEqual(run.call_count, 1)
+            self.assertTrue((home / ".kimi-code/config.toml").exists())
+
     def test_publish_dry_run_does_not_write(self):
         from tempfile import TemporaryDirectory
         from pathlib import Path
@@ -96,6 +125,14 @@ class BridgeTests(unittest.TestCase):
             outcome = publish_config("cursor", home=home, dry_run=True)
             self.assertTrue(outcome["changed"])
             self.assertFalse((home / ".cursor/hooks.json").exists())
+
+    def test_emit_ignores_malformed_hook_input(self):
+        from io import StringIO
+        from unittest.mock import patch
+        from agent_terminal_bridge.cli import main
+        with patch("sys.stdin", StringIO("{")), patch("sys.stdout", new_callable=StringIO) as output:
+            self.assertEqual(main(["emit", "--agent", "kimi"]), 0)
+        self.assertEqual(output.getvalue(), "{}\n")
 
     def test_installed_completion_events_are_mapped(self):
         for agent, upstream in (("claude", "SessionEnd"), ("cursor", "sessionEnd"), ("kimi", "SessionEnd")):

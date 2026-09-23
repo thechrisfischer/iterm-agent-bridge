@@ -46,7 +46,14 @@ def launch(args):
 
 def emit(args):
     _, events = mapping(args.agent)
-    raw = json.load(sys.stdin) if not sys.stdin.isatty() else {}
+    try:
+        raw = json.load(sys.stdin) if not sys.stdin.isatty() else {}
+    except (OSError, ValueError):
+        print("{}")
+        return 0
+    if not isinstance(raw, dict):
+        print("{}")
+        return 0
     kind = events.get(raw.get("hook_event_name") or args.upstream_event)
     session, nonce = os.environ.get("ITERM_SESSION_ID"), os.environ.get("AGENT_TERMINAL_BRIDGE_NONCE")
     if not kind or not session or not nonce:

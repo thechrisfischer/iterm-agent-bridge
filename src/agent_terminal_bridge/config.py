@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -120,6 +121,23 @@ def render_kimi(existing):
     return existing.rstrip() + "\n" + "\n".join(lines), True
 
 
+def _validate_kimi(path):
+    """Delegate TOML validation to the installed Kimi CLI; never guess TOML."""
+    kimi = shutil.which("kimi")
+    if not kimi:
+        raise ValueError("Kimi CLI is required to validate Kimi configuration")
+    try:
+        result = subprocess.run([kimi, "doctor", "config", str(path)],
+                                stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                timeout=2, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError("could not validate Kimi configuration") from exc
+    if result.returncode:
+        raise ValueError("invalid Kimi configuration: %s" % path)
+
+
 def publish(agent, home=None, dry_run=False):
     path = config_path(agent, home)
     if agent in JSON_AGENTS:
@@ -130,6 +148,8 @@ def publish(agent, home=None, dry_run=False):
         if path.exists() and (path.is_symlink() or not path.is_file()):
             raise ValueError("refusing non-regular configuration: %s" % path)
         existing = path.read_text() if path.exists() else ""
+        if path.exists():
+            _validate_kimi(path)
         rendered, changed = render_kimi(existing)
         content = rendered
     else:
@@ -138,16 +158,20 @@ def publish(agent, home=None, dry_run=False):
         return {"path": str(path), "changed": changed, "backup": None}
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     backup = None
-    if path.exists():
-        backup = path.with_name(path.name + ".agent-terminal-bridge.%d.bak" % time.time_ns())
-        shutil.copy2(path, backup)
-        if not backup.is_file() or backup.read_bytes() != path.read_bytes():
-            raise OSError("could not verify configuration backup")
     fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w") as stream:
             stream.write(content)
         os.chmod(temporary, 0o600)
+        if agent == "kimi":
+            _validate_kimi(temporary)
+        # Validate the staged candidate before making a recovery copy or
+        # replacing the user's configuration.
+        if path.exists():
+            backup = path.with_name(path.name + ".agent-terminal-bridge.%d.bak" % time.time_ns())
+            shutil.copy2(path, backup)
+            if not backup.is_file() or backup.read_bytes() != path.read_bytes():
+                raise OSError("could not verify configuration backup")
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):
