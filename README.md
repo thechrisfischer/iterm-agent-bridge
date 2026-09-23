@@ -4,8 +4,10 @@ Agent Terminal Bridge publishes privacy-safe lifecycle state to iTerm2's native
 **Session Status** sidebar. It has normalized adapter definitions for Claude
 Code, Codex CLI, Cursor Agent, Kimi Code, and Antigravity CLI.
 
-It turns documented agent lifecycle events into four honest states:
-`working`, `waiting`, `idle`, and `unavailable`. It does not read prompts,
+It turns documented agent lifecycle events into iTerm2's three sidebar states:
+`working`, `waiting`, and `idle`. Delivery health is reported separately as
+`ready` or `unavailable`; on a delivery failure, iTerm retains its prior state.
+It does not read prompts,
 terminal output, transcripts, command arguments, or credentials; it does not
 approve, block, or otherwise affect agent actions.
 
