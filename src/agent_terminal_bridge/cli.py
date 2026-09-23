@@ -6,6 +6,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -31,9 +32,30 @@ def socket_ready():
     return send({"type": "probe"}).get("status") != "unavailable"
 
 
+def ensure_server():
+    """Start the local service on first iTerm launch; never block the agent."""
+    if socket_ready():
+        return True
+    try:
+        config_dir().mkdir(mode=0o700, parents=True, exist_ok=True)
+        with open(os.devnull, "wb") as null:
+            subprocess.Popen(
+                [sys.executable, "-m", "agent_terminal_bridge", "serve"],
+                stdin=null, stdout=null, stderr=null, start_new_session=True,
+            )
+    except OSError:
+        return False
+    for _ in range(10):
+        time.sleep(.05)
+        if socket_ready():
+            return True
+    return False
+
+
 def launch(args):
     session = os.environ.get("ITERM_SESSION_ID")
     if not session: print("ITERM_SESSION_ID is required", file=sys.stderr); return 2
+    ensure_server()
     nonce = secrets.token_hex(16)
     send({"type":"register","protocol_version":1,"agent":args.agent,"iterm_session_id":session,"launch_nonce":nonce,"project_basename":Path.cwd().name})
     env = os.environ.copy(); env["AGENT_TERMINAL_BRIDGE_NONCE"] = nonce

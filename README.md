@@ -7,9 +7,8 @@ Code, Codex CLI, Cursor Agent, Kimi Code, and Antigravity CLI.
 It turns documented agent lifecycle events into iTerm2's three sidebar states:
 `working`, `waiting`, and `idle`. Delivery health is reported separately as
 `ready` or `unavailable`; on a delivery failure, iTerm retains its prior state.
-It does not read prompts,
-terminal output, transcripts, command arguments, or credentials; it does not
-approve, block, or otherwise affect agent actions.
+It does not read prompts, terminal output, transcripts, command arguments, or
+credentials; it does not approve, block, or otherwise affect agent actions.
 
 ## Requirements
 
@@ -25,18 +24,13 @@ iTerm2; it never updates whichever terminal happens to be active.
 ```bash
 python3 -m pip install --user --no-deps .
 python3 -m unittest discover -s tests -v
-agent-terminal-bridge serve
 agent-terminal-bridge doctor
 ```
 
-Launch an agent through the bridge from iTerm2:
-
-```bash
-agent-terminal-bridge launch --agent codex -- codex
-```
-
-The bridge server is intentionally separate from agent startup. Start it in a
-dedicated terminal, then launch a supported agent through the bridge:
+When an agent is launched through `agent-terminal-bridge launch`, the command
+starts the local service if it is not already ready, registers the current iTerm
+session, and then starts the agent. It never prevents the agent from starting
+if iTerm publication is unavailable:
 
 ```bash
 agent-terminal-bridge launch --agent codex -- codex
@@ -62,7 +56,7 @@ trust hooks.
 
 | Agent | Normalized lifecycle mapping | Shipped registration |
 | --- | --- | --- |
-| Codex CLI | Yes | Codex plugin hook manifest |
+| Codex CLI | Yes | Codex marketplace plugin |
 | Claude Code | Yes | Opt-in user-settings publisher; native review still required |
 | Cursor Agent | Yes | Opt-in user-hooks publisher |
 | Kimi Code | Yes | Opt-in TOML hook publisher |

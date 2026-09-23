@@ -1,6 +1,6 @@
 {
   "name": "agent-terminal-bridge",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260923205046",
   "description": "Publish Codex lifecycle state to a local iTerm2 bridge.",
   "author": {
     "name": "Local developer"

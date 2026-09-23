@@ -1,0 +1,20 @@
+{
+  "name": "iterm-agent-bridge",
+  "interface": {
+    "displayName": "iTerm Agent Bridge"
+  },
+  "plugins": [
+    {
+      "name": "agent-terminal-bridge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agent-terminal-bridge"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

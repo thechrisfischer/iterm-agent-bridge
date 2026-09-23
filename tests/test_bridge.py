@@ -1,13 +1,14 @@
 import asyncio
 import os
 import unittest
+from argparse import Namespace
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from agent_terminal_bridge.protocol import ProtocolError, validate_event, validate_register
 from agent_terminal_bridge.server import Bridge, serve, socket_path
 from agent_terminal_bridge.publisher import session_uuid, publish
-from agent_terminal_bridge.cli import socket_ready
+from agent_terminal_bridge.cli import launch, socket_ready
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
 from agent_terminal_bridge.adapters import mapping
 
@@ -69,6 +70,17 @@ class BridgeTests(unittest.TestCase):
         from unittest.mock import patch
         with patch("agent_terminal_bridge.cli.send", return_value={"status": "unavailable"}):
             self.assertFalse(socket_ready())
+
+    def test_launch_starts_the_service_before_registration(self):
+        args = Namespace(agent="codex", command=["--", "/bin/true"])
+        with patch.dict(os.environ, {"ITERM_SESSION_ID": "w0t0p0:123e4567-e89b-42d3-a456-426614174000"}), \
+             patch("agent_terminal_bridge.cli.socket_ready", side_effect=[False, True]), \
+             patch("agent_terminal_bridge.cli.subprocess.Popen") as start, \
+             patch("agent_terminal_bridge.cli.send", return_value={"status": "registered"}) as send, \
+             patch("agent_terminal_bridge.cli.subprocess.call", return_value=0):
+            self.assertEqual(launch(args), 0)
+        self.assertTrue(start.called)
+        self.assertEqual(send.call_args.args[0]["type"], "register")
 
     def test_json_publishers_preserve_unrelated_configuration(self):
         settings = {"permissions": {"allow": ["Bash(git)"]}}
