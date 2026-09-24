@@ -51,6 +51,20 @@ full unstaged patch. `agents` shows active bridge sessions and reported child
 agent IDs with their lifecycle state. It deliberately does not collect prompts,
 transcripts, tool arguments, or fabricated percent-complete values.
 
+In an iTerm2 agent pane, create both panels as a single, explicit layout:
+
+```bash
+agent-terminal-bridge cockpit
+```
+
+`cockpit` keeps the current pane for the agent, opens a vertical Git-review pane,
+then splits that pane horizontally for the background-agent flightboard. Both
+new panes inherit the current working directory and run only the read-only
+watch commands above. It makes no permanent iTerm2 change. If iTerm cannot
+unambiguously identify a newly created pane, it stops before starting watchers;
+any panes already created remain available for you to close or reuse. The same
+is true if iTerm rejects either watcher command.
+
 Install each non-Codex adapter only after reviewing its dry run. Each publisher
 merges only its identifiable command entries, creates a verified neighboring
 backup before a replacement, and never trusts a hook on your behalf:

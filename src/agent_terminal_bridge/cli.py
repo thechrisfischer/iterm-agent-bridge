@@ -14,6 +14,7 @@ from .adapters import ADAPTERS, mapping
 from .protocol import PROTOCOL_VERSION
 from .server import config_dir, socket_path, serve
 from .publisher import find_it2
+from .cockpit import CockpitError, create as create_cockpit
 from .config import JSON_AGENTS, publish
 from .review import render_patch, render_review
 
@@ -104,6 +105,7 @@ def main(argv=None):
     e=sub.add_parser("emit"); e.add_argument("--agent",choices=ADAPTERS,required=True); e.add_argument("--upstream-event")
     review = sub.add_parser("review"); review.add_argument("--patch", action="store_true"); review.add_argument("--watch", action="store_true"); review.add_argument("--interval", type=float, default=2)
     agents = sub.add_parser("agents"); agents.add_argument("--watch", action="store_true"); agents.add_argument("--interval", type=float, default=2)
+    sub.add_parser("cockpit", help="open read-only Git review and background-agent panes in iTerm2")
     a=p.parse_args(argv)
     if a.action=="serve": asyncio.run(serve()); return 0
     if a.action=="launch": return launch(a)
@@ -115,6 +117,13 @@ def main(argv=None):
     if a.action=="agents":
         if a.watch: return watch(render_agents, max(a.interval, .2))
         print(render_agents()); return 0
+    if a.action=="cockpit":
+        try:
+            panes = create_cockpit(os.environ.get("ITERM_SESSION_ID"))
+        except CockpitError as exc:
+            print("cockpit: %s" % exc, file=sys.stderr); return 2
+        print("Opened review pane %s and background-agent pane %s." % (panes["review"], panes["flightboard"]))
+        return 0
     if a.action=="install":
         if a.agent:
             result = publish(a.agent, dry_run=a.dry_run); action = "Would add" if a.dry_run and result["changed"] else ("Added" if result["changed"] else "Already has")

@@ -9,6 +9,7 @@ from agent_terminal_bridge.protocol import ProtocolError, validate_event, valida
 from agent_terminal_bridge.server import Bridge, serve, socket_path
 from agent_terminal_bridge.publisher import session_uuid, publish
 from agent_terminal_bridge.cli import launch, socket_ready
+from agent_terminal_bridge.cockpit import CockpitError, create as create_cockpit
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
 from agent_terminal_bridge.adapters import mapping
 from agent_terminal_bridge.review import render_review
@@ -174,6 +175,63 @@ class BridgeTests(unittest.TestCase):
     def test_installed_completion_events_are_mapped(self):
         for agent, upstream in (("claude", "SessionEnd"), ("cursor", "sessionEnd"), ("kimi", "SessionEnd")):
             self.assertEqual(mapping(agent)[1][upstream], "session_closed")
+
+    def test_cockpit_creates_review_and_flightboard_in_new_panes(self):
+        class Result:
+            returncode = 0
+            stderr = ""
+
+            def __init__(self, sessions):
+                self.stdout = __import__("json").dumps([{"id": value} for value in sessions])
+
+        source = "123E4567-E89B-42D3-A456-426614174000"
+        sessions = [[source], [source], [source, "review"], [source, "review"], [source, "review", "flightboard"]]
+        calls = []
+
+        def run(command, **_kwargs):
+            calls.append(command)
+            if command[2:4] == ["list", "--json"]:
+                return Result(sessions.pop(0))
+            return Result([])
+
+        with patch("agent_terminal_bridge.cockpit.find_it2", return_value="/fake/it2"), \
+             patch("agent_terminal_bridge.cockpit.subprocess.run", side_effect=run):
+            panes = create_cockpit("window:%s" % source)
+        self.assertEqual(panes, {"review": "review", "flightboard": "flightboard"})
+        self.assertIn(["/fake/it2", "session", "split", "--session", source, "--vertical"], calls)
+        self.assertIn(["/fake/it2", "session", "split", "--session", "review"], calls)
+        self.assertIn(["/fake/it2", "session", "run", "exec agent-terminal-bridge review --watch", "--session", "review"], calls)
+        self.assertIn(["/fake/it2", "session", "run", "exec agent-terminal-bridge agents --watch", "--session", "flightboard"], calls)
+
+    def test_cockpit_refuses_to_create_panes_without_an_iterm_session(self):
+        with self.assertRaises(CockpitError):
+            create_cockpit("not-an-iterm-session")
+
+    def test_cockpit_reports_watcher_failure_after_leaving_created_panes_alone(self):
+        class Result:
+            def __init__(self, sessions=(), returncode=0, stderr=""):
+                self.returncode = returncode
+                self.stderr = stderr
+                self.stdout = __import__("json").dumps([{"id": value} for value in sessions])
+
+        source = "123E4567-E89B-42D3-A456-426614174000"
+        snapshots = [[source], [source], [source, "review"], [source, "review"], [source, "review", "flightboard"]]
+        calls = []
+
+        def run(command, **_kwargs):
+            calls.append(command)
+            if command[2:4] == ["list", "--json"]:
+                return Result(snapshots.pop(0))
+            if command[2:4] == ["run", "exec agent-terminal-bridge agents --watch"]:
+                return Result(returncode=1, stderr="profile rejected command")
+            return Result()
+
+        with patch("agent_terminal_bridge.cockpit.find_it2", return_value="/fake/it2"), \
+             patch("agent_terminal_bridge.cockpit.subprocess.run", side_effect=run):
+            with self.assertRaisesRegex(CockpitError, "profile rejected command"):
+                create_cockpit("window:%s" % source)
+        self.assertIn(["/fake/it2", "session", "split", "--session", "review"], calls)
+        self.assertIn(["/fake/it2", "session", "run", "exec agent-terminal-bridge review --watch", "--session", "review"], calls)
 
 
 class ServerTests(unittest.IsolatedAsyncioTestCase):
