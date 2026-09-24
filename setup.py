@@ -7,5 +7,8 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     python_requires=">=3.9",
-    entry_points={"console_scripts": ["agent-terminal-bridge=agent_terminal_bridge.cli:main"]},
+    entry_points={"console_scripts": [
+        "agent-terminal-bridge=agent_terminal_bridge.cli:main",
+        "aiterm=agent_terminal_bridge.cli:main",
+    ]},
 )

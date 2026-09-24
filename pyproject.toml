@@ -11,6 +11,7 @@ license = {text = "MIT"}
 
 [project.scripts]
 agent-terminal-bridge = "agent_terminal_bridge.cli:main"
+aiterm = "agent_terminal_bridge.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

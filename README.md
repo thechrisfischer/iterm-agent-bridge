@@ -54,10 +54,11 @@ transcripts, tool arguments, or fabricated percent-complete values.
 In an iTerm2 agent pane, create both panels as a single, explicit layout:
 
 ```bash
-agent-terminal-bridge cockpit
+aiterm cockpit
 ```
 
-`cockpit` keeps the current pane for the agent, opens a vertical Git-review pane,
+`aiterm` is the short alias for `agent-terminal-bridge` (the dotfiles installer
+and the Python package both provide it). `cockpit` keeps the current pane for the agent, opens a vertical Git-review pane,
 then splits that pane horizontally for the background-agent flightboard. Both
 new panes inherit the current working directory and run only the read-only
 watch commands above. It makes no permanent iTerm2 change. If iTerm cannot
