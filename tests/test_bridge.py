@@ -251,6 +251,31 @@ class BridgeTests(unittest.TestCase):
         self.assertIn(["/fake/it2", "session", "run", "exec agent-terminal-bridge review --watch", "--session", "review"], calls)
         self.assertIn(["/fake/it2", "session", "run", "exec agent-terminal-bridge agents --watch", "--session", "flightboard"], calls)
 
+    def test_cockpit_can_create_review_only(self):
+        class Result:
+            returncode = 0
+            stderr = ""
+
+            def __init__(self, sessions):
+                self.stdout = __import__("json").dumps([{"id": value} for value in sessions])
+
+        source = "123E4567-E89B-42D3-A456-426614174000"
+        sessions = [[source], [source], [source, "review"]]
+        calls = []
+
+        def run(command, **_kwargs):
+            calls.append(command)
+            if command[2:4] == ["list", "--json"]:
+                return Result(sessions.pop(0))
+            return Result([])
+
+        with patch("agent_terminal_bridge.cockpit.find_it2", return_value="/fake/it2"), \
+             patch("agent_terminal_bridge.cockpit.subprocess.run", side_effect=run):
+            panes = create_cockpit("window:%s" % source, include_flightboard=False)
+        self.assertEqual(panes, {"review": "review"})
+        self.assertIn(["/fake/it2", "session", "run", "exec agent-terminal-bridge review --watch", "--session", "review"], calls)
+        self.assertNotIn("agents --watch", " ".join(" ".join(call) for call in calls))
+
     def test_cockpit_refuses_to_create_panes_without_an_iterm_session(self):
         with self.assertRaises(CockpitError):
             create_cockpit("not-an-iterm-session")

@@ -59,6 +59,10 @@ repos, **Ctrl-W then Up/Down** to move focus between the repo list and diff,
 **Tab** as a shortcut for the same focus switch, **r** to rescan, and **q** to
 quit. Non-interactive callers keep the text renderer and watch behavior.
 
+Use `aiterm review` from an active iTerm2 session to create a new review-only
+split. Use `agent-terminal-bridge review --watch` when you intentionally want
+to run the watcher in the current pane.
+
 In an iTerm2 agent pane, create both panels as a single, explicit layout:
 
 ```bash

@@ -105,7 +105,8 @@ def main(argv=None):
     e=sub.add_parser("emit"); e.add_argument("--agent",choices=ADAPTERS,required=True); e.add_argument("--upstream-event")
     review = sub.add_parser("review"); review.add_argument("--patch", action="store_true"); review.add_argument("--watch", action="store_true"); review.add_argument("--interval", type=float, default=2); review.add_argument("--root", default=".")
     agents = sub.add_parser("agents"); agents.add_argument("--watch", action="store_true"); agents.add_argument("--interval", type=float, default=2)
-    sub.add_parser("cockpit", help="open read-only Git review and background-agent panes in iTerm2")
+    cockpit = sub.add_parser("cockpit", help="open read-only Git review and background-agent panes in iTerm2")
+    cockpit.add_argument("--review-only", action="store_true", help="open only the Git review pane")
     a=p.parse_args(argv)
     if a.action=="serve": asyncio.run(serve()); return 0
     if a.action=="launch": return launch(a)
@@ -122,10 +123,13 @@ def main(argv=None):
         print(render_agents()); return 0
     if a.action=="cockpit":
         try:
-            panes = create_cockpit(os.environ.get("ITERM_SESSION_ID"))
+            panes = create_cockpit(os.environ.get("ITERM_SESSION_ID"), include_flightboard=not a.review_only)
         except CockpitError as exc:
             print("cockpit: %s" % exc, file=sys.stderr); return 2
-        print("Opened review pane %s and background-agent pane %s." % (panes["review"], panes["flightboard"]))
+        if a.review_only:
+            print("Opened review pane %s." % panes["review"])
+        else:
+            print("Opened review pane %s and background-agent pane %s." % (panes["review"], panes["flightboard"]))
         return 0
     if a.action=="install":
         if a.agent:

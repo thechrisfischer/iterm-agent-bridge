@@ -50,8 +50,8 @@ def _split(it2, source, vertical):
     return created.pop()
 
 
-def create(session_id, environ=None):
-    """Create review and flightboard panes adjacent to ``session_id``.
+def create(session_id, environ=None, include_flightboard=True):
+    """Create review and optionally flightboard panes adjacent to ``session_id``.
 
     The iTerm CLI inherits the source pane's working directory for both splits.
     It receives only fixed local commands; no terminal content is inspected.
@@ -66,7 +66,9 @@ def create(session_id, environ=None):
         raise CockpitError("the current iTerm2 session is no longer available")
 
     review = _split(it2, source, vertical=True)
-    flightboard = _split(it2, review, vertical=False)
     _command(it2, ["session", "run", "exec agent-terminal-bridge review --watch", "--session", review])
+    if not include_flightboard:
+        return {"review": review}
+    flightboard = _split(it2, review, vertical=False)
     _command(it2, ["session", "run", "exec agent-terminal-bridge agents --watch", "--session", flightboard])
     return {"review": review, "flightboard": flightboard}
