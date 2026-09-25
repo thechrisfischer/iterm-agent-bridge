@@ -58,6 +58,16 @@ def _numstat(repo):
         except ValueError:
             # Binary diffs report '-' instead of a line count.
             continue
+    for code, relative_path in _status_paths(repo):
+        if code != "??":
+            continue
+        path = Path(repo) / relative_path
+        if not path.is_file():
+            continue
+        try:
+            additions += len(path.read_bytes().splitlines())
+        except OSError:
+            continue
     return additions, deletions
 
 
@@ -118,11 +128,31 @@ def render_review(root="."):
 
 
 def render_repo_patch(repo):
-    """Return the unstaged patch, falling back to the staged patch."""
-    patch = _git(repo, "diff", "--no-ext-diff")
-    if patch:
-        return patch
-    return _git(repo, "diff", "--cached", "--no-ext-diff")
+    """Return tracked and untracked changes as one reviewable patch."""
+    pieces = []
+    unstaged = _git(repo, "diff", "--no-ext-diff")
+    staged = _git(repo, "diff", "--cached", "--no-ext-diff")
+    if unstaged:
+        pieces.append(unstaged)
+    if staged:
+        pieces.append(staged)
+    for code, relative_path in _status_paths(repo):
+        if code != "??":
+            continue
+        path = Path(repo) / relative_path
+        if not path.is_file():
+            continue
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(repo), "diff", "--no-index", "--no-ext-diff", "/dev/null", str(path)],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                timeout=2, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if result.stdout:
+            pieces.append(result.stdout.strip())
+    return "\n".join(pieces)
 
 
 def render_patch(root="."):
@@ -143,6 +173,7 @@ class _ReviewUI:
         self.interval = max(interval, .2)
         self.repos = ()
         self.selected = 0
+        self.repo_scroll = 0
         self.focus = "repos"
         self.diff = []
         self.diff_scroll = 0
@@ -156,6 +187,7 @@ class _ReviewUI:
         if old_path:
             self.selected = next((i for i, repo in enumerate(self.repos) if repo.path == old_path), 0)
         self.selected = min(self.selected, max(len(self.repos) - 1, 0))
+        self.repo_scroll = min(self.repo_scroll, max(len(self.repos) - 1, 0))
         if self.diff and self.repos:
             self.open_diff(quiet=True)
 
@@ -251,34 +283,47 @@ class _ReviewUI:
         self._add(window, 0, 0, "Git review", colors["head"])
         self._add(window, 0, 13, "· %s" % self.root, colors["muted"], width - 13)
         self._add(window, 1, 0, "▾ %s/ · %d repos" % (_scope_name(self.root, self.repos), len(self.repos)), colors["head"], width)
-        self._add(window, 2, 0, "↑↓ move   Enter open diff   Ctrl-W + ↑/↓ switch   Tab switch   r refresh   q quit", colors["quiet"], width)
+        self._add(window, 2, 0, "↑↓ move   Enter/→ open diff   Ctrl-W + ↑/↓ switch   Tab switch   r refresh   q quit", colors["quiet"], width)
         self._add(window, 3, 0, "─" * max(width, 1), colors["line"], width)
 
         list_start = 4
         reserved = 5 if self.diff else 2
-        list_height = max(1, height - list_start - reserved)
+        available = max(1, height - list_start - reserved)
+        list_height = available
         if self.diff:
-            list_height = min(list_height, max(len(self.repos), 1) + 1)
-        for index, repo in enumerate(self.repos[:max(list_height - 1, 0)]):
-            row = list_start + index
-            selected = index == self.selected
-            base = colors["selected"] if selected else 0
+            list_height = max(6, available // 2)
+            list_height = min(list_height, available)
+        visible_count = max(1, list_height)
+        if self.selected < self.repo_scroll:
+            self.repo_scroll = self.selected
+        elif self.selected >= self.repo_scroll + visible_count:
+            self.repo_scroll = self.selected - visible_count + 1
+        self.repo_scroll = min(self.repo_scroll, max(len(self.repos) - visible_count, 0))
+        visible_repos = self.repos[self.repo_scroll:self.repo_scroll + visible_count]
+        for offset, repo in enumerate(visible_repos):
+            actual_index = self.repo_scroll + offset
+            row = list_start + offset
+            selected = actual_index == self.selected
+            base = colors["selected"] | curses.A_BOLD if selected else 0
             marker = "●" if repo.dirty else "○"
-            marker_attr = colors["dirty"] if repo.dirty else colors["clean"]
+            marker_attr = base if selected else (colors["dirty"] if repo.dirty else colors["clean"])
             self._add(window, row, 0, " " * width, base, width)
+            self._add(window, row, 0, "▶" if selected else " ", base if selected else colors["head"])
             self._add(window, row, 1, marker, marker_attr | base)
-            self._add(window, row, 4, repo.path.name, (colors["dirty"] if repo.dirty else colors["text"]) | base, max(width - 4, 0))
+            name_attr = base if selected else (colors["dirty"] if repo.dirty else colors["text"])
+            self._add(window, row, 4, repo.path.name, name_attr, max(width - 4, 0))
             branch_col = max(5, width - len(repo.branch) - 18)
-            self._add(window, row, branch_col, repo.branch, colors["muted"] | base, max(width - branch_col, 0))
+            self._add(window, row, branch_col, repo.branch, base if selected else colors["muted"], max(width - branch_col, 0))
             state = "%d changed" % len(repo.changed_files) if repo.dirty else "clean"
             state_col = max(branch_col + len(repo.branch) + 2, width - len(state) - 2)
-            self._add(window, row, state_col, state, (colors["dirty"] if repo.dirty else colors["clean"]) | base, max(width - state_col, 0))
+            state_attr = base if selected else (colors["dirty"] if repo.dirty else colors["clean"])
+            self._add(window, row, state_col, state, state_attr, max(width - state_col, 0))
 
         if not self.repos:
             self._add(window, list_start, 0, "No Git repositories under this path.", colors["muted"], width)
 
         if self.diff:
-            divider_row = min(height - 2, list_start + min(len(self.repos), list_height - 1) + 1)
+            divider_row = min(height - 2, list_start + visible_count)
             self._add(window, divider_row, 0, "─" * max(width, 1), colors["line"], width)
             repo = self.selected_repo
             self._add(window, divider_row + 1, 0, "%s · %s" % (repo.path.name, repo.branch), colors["head"], width)
@@ -355,7 +400,7 @@ def _init_colors():
         "quiet": (curses.COLOR_WHITE, -1),
         "line": (curses.COLOR_BLUE, -1),
         "text": (curses.COLOR_WHITE, -1),
-        "selected": (curses.COLOR_BLUE, -1),
+        "selected": (curses.COLOR_BLACK, curses.COLOR_CYAN),
         "dirty": (curses.COLOR_YELLOW, -1),
         "clean": (curses.COLOR_GREEN, -1),
         "add": (curses.COLOR_GREEN, -1),

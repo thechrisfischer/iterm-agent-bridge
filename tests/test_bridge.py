@@ -15,7 +15,7 @@ from agent_terminal_bridge.cli import launch, socket_ready
 from agent_terminal_bridge.cockpit import CockpitError, create as create_cockpit
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
 from agent_terminal_bridge.adapters import mapping
-from agent_terminal_bridge.review import _ReviewUI, discover_repositories, render_review
+from agent_terminal_bridge.review import RepoStatus, _ReviewUI, discover_repositories, render_repo_patch, render_review
 
 
 def registration(nonce="a" * 32):
@@ -98,6 +98,38 @@ class BridgeTests(unittest.TestCase):
         self.assertTrue(ui.handle(23))
         self.assertTrue(ui.handle(curses.KEY_UP))
         self.assertEqual(ui.focus, "repos")
+
+    def test_review_enter_opens_selected_dirty_repo_diff(self):
+        class Window:
+            def getmaxyx(self):
+                return (24, 80)
+
+        ui = object.__new__(_ReviewUI)
+        ui.window = Window()
+        ui.repos = (RepoStatus(Path("/tmp/demo"), "main", ((" M", "README.md"),), 2, 1),)
+        ui.selected = 0
+        ui.repo_scroll = 0
+        ui.focus = "repos"
+        ui.diff = []
+        ui.diff_scroll = 0
+        ui.prefix = False
+        ui.message = ""
+        with patch("agent_terminal_bridge.review.render_repo_patch", return_value="@@ -1 +1 @@\n-old\n+new"):
+            self.assertTrue(ui.handle(10))
+        self.assertEqual(ui.focus, "diff")
+        self.assertEqual(ui.diff, ["@@ -1 +1 @@", "-old", "+new"])
+
+    def test_review_renders_untracked_file_diff(self):
+        with TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            untracked = repo / "new.txt"
+            untracked.write_text("new content\nsecond line\n")
+            patch = render_repo_patch(repo)
+            self.assertIn("new.txt", patch)
+            self.assertIn("+new content", patch)
+            status = discover_repositories(repo)[0]
+            self.assertEqual(status.additions, 2)
 
     def test_publishes_transition_to_explicit_iterm_session(self):
         published=[]
