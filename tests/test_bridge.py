@@ -1,7 +1,10 @@
 import asyncio
+import curses
 import os
+import subprocess
 import unittest
 from argparse import Namespace
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
@@ -12,7 +15,7 @@ from agent_terminal_bridge.cli import launch, socket_ready
 from agent_terminal_bridge.cockpit import CockpitError, create as create_cockpit
 from agent_terminal_bridge.config import command, publish as publish_config, render_json, render_kimi
 from agent_terminal_bridge.adapters import mapping
-from agent_terminal_bridge.review import render_review
+from agent_terminal_bridge.review import _ReviewUI, discover_repositories, render_review
 
 
 def registration(nonce="a" * 32):
@@ -50,6 +53,51 @@ class BridgeTests(unittest.TestCase):
     def test_review_reports_a_non_git_directory(self):
         with TemporaryDirectory() as temporary:
             self.assertIn("No Git worktree", render_review(temporary))
+
+    def test_review_discovers_nested_repositories_and_marks_dirty_state(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clean = root / "clean-repo"
+            dirty = root / "dirty-repo"
+            for repo in (clean, dirty):
+                repo.mkdir()
+                subprocess.run(["git", "init", "-q", str(repo)], check=True)
+                subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+                subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+                (repo / "README.md").write_text("initial\n")
+                subprocess.run(["git", "-C", str(repo), "add", "README.md"], check=True)
+                subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "initial"], check=True)
+            (dirty / "README.md").write_text("changed\n")
+
+            repos = discover_repositories(root)
+            self.assertEqual([repo.path.name for repo in repos], ["clean-repo", "dirty-repo"])
+            self.assertFalse(repos[0].dirty)
+            self.assertTrue(repos[1].dirty)
+            self.assertIn("2 repos", render_review(root))
+            self.assertIn("1 changed", render_review(root))
+
+    def test_review_ctrl_w_switches_between_repo_and_diff_focus(self):
+        class Window:
+            def getmaxyx(self):
+                return (24, 80)
+
+        ui = object.__new__(_ReviewUI)
+        ui.window = Window()
+        ui.repos = (object(),)
+        ui.selected = 0
+        ui.focus = "repos"
+        ui.diff = ["@@ -1 +1 @@"]
+        ui.diff_scroll = 0
+        ui.prefix = False
+        ui.message = ""
+
+        self.assertTrue(ui.handle(23))
+        self.assertTrue(ui.prefix)
+        self.assertTrue(ui.handle(curses.KEY_DOWN))
+        self.assertEqual(ui.focus, "diff")
+        self.assertTrue(ui.handle(23))
+        self.assertTrue(ui.handle(curses.KEY_UP))
+        self.assertEqual(ui.focus, "repos")
 
     def test_publishes_transition_to_explicit_iterm_session(self):
         published=[]

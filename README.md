@@ -51,6 +51,14 @@ full unstaged patch. `agents` shows active bridge sessions and reported child
 agent IDs with their lifecycle state. It deliberately does not collect prompts,
 transcripts, tool arguments, or fabricated percent-complete values.
 
+When `review --watch` runs in an interactive iTerm pane, it becomes a compact
+repository navigator. It scans the current working directory for nested Git
+repositories, marks clean and changed repos separately, and opens the selected
+repo's diff inline with **Enter**. Use **Up/Down** or **j/k** to move through
+repos, **Ctrl-W then Up/Down** to move focus between the repo list and diff,
+**Tab** as a shortcut for the same focus switch, **r** to rescan, and **q** to
+quit. Non-interactive callers keep the text renderer and watch behavior.
+
 In an iTerm2 agent pane, create both panels as a single, explicit layout:
 
 ```bash

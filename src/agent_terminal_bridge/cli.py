@@ -16,7 +16,7 @@ from .server import config_dir, socket_path, serve
 from .publisher import find_it2
 from .cockpit import CockpitError, create as create_cockpit
 from .config import JSON_AGENTS, publish
-from .review import render_patch, render_review
+from .review import render_patch, render_review, run_review_ui
 
 
 def send(body):
@@ -103,7 +103,7 @@ def main(argv=None):
     install = sub.add_parser("install"); install.add_argument("--dry-run", action="store_true"); install.add_argument("--agent", choices=tuple(sorted(JSON_AGENTS | {"kimi"})))
     l=sub.add_parser("launch"); l.add_argument("--agent",choices=ADAPTERS,required=True); l.add_argument("command",nargs=argparse.REMAINDER)
     e=sub.add_parser("emit"); e.add_argument("--agent",choices=ADAPTERS,required=True); e.add_argument("--upstream-event")
-    review = sub.add_parser("review"); review.add_argument("--patch", action="store_true"); review.add_argument("--watch", action="store_true"); review.add_argument("--interval", type=float, default=2)
+    review = sub.add_parser("review"); review.add_argument("--patch", action="store_true"); review.add_argument("--watch", action="store_true"); review.add_argument("--interval", type=float, default=2); review.add_argument("--root", default=".")
     agents = sub.add_parser("agents"); agents.add_argument("--watch", action="store_true"); agents.add_argument("--interval", type=float, default=2)
     sub.add_parser("cockpit", help="open read-only Git review and background-agent panes in iTerm2")
     a=p.parse_args(argv)
@@ -111,8 +111,11 @@ def main(argv=None):
     if a.action=="launch": return launch(a)
     if a.action=="emit": return emit(a)
     if a.action=="review":
-        render = (lambda: render_patch()) if a.patch else (lambda: render_review())
-        if a.watch: return watch(render, max(a.interval, .2))
+        render = (lambda: render_patch(a.root)) if a.patch else (lambda: render_review(a.root))
+        if a.watch:
+            if not a.patch and sys.stdin.isatty() and sys.stdout.isatty():
+                return run_review_ui(a.root, max(a.interval, .2))
+            return watch(render, max(a.interval, .2))
         print(render()); return 0
     if a.action=="agents":
         if a.watch: return watch(render_agents, max(a.interval, .2))
