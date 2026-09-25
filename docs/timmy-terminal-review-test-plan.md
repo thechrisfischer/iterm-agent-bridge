@@ -50,6 +50,7 @@ final evidence set includes screenshots for T1–T8 and a captured error for T10
 
 Timmy ran the core flow in a real iTerm2 review session rooted at `/Users/cfischer`:
 
+- T1 passed from the installed wrapper: `aiterm review` opened a second iTerm pane containing the review UI. Evidence: `/tmp/timmy-t1-installed-aiterm-review2.png`.
 - T2 passed: 20 Down presses moved the high-contrast selection to `growth-hacking` and kept it visible at the bottom of the list. Evidence: `/tmp/timmy-t2-navigation.png`.
 - T3 passed after fixing untracked-only patches: Enter opened the selected repository's diff below the list, with the live header reporting `+325 −0` for the untracked HTML file. Evidence: `/tmp/timmy-t3-live-line-count.png`.
 - T5 passed: PageDown scrolled the diff while keeping `growth-hacking` selected. Evidence: `/tmp/timmy-t5-diff-scroll.png`.
